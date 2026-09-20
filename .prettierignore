@@ -1,0 +1,7 @@
+node_modules
+.expo
+coverage
+dist
+work
+outputs
+package-lock.json

@@ -1,0 +1,15 @@
+export const colors = Object.freeze({
+  page: '#F5F6FC',
+  surface: '#FFFFFF',
+  primary: '#3852D0',
+  primaryPressed: '#2D43B0',
+  primarySoft: '#E8ECFF',
+  textPrimary: '#182238',
+  textSecondary: '#5F6D89',
+  border: '#D8DEEB',
+  error: '#C92A45',
+  errorBackground: '#FFE9EE',
+  success: '#087F5B',
+  successBackground: '#E6F7F1',
+  white: '#FFFFFF',
+});

@@ -1,0 +1,81 @@
+import type { SecureStorage } from '@/shared/storage/SecureStorage';
+
+import type { Session } from '../../domain/entities/Session';
+import type { User } from '../../domain/entities/User';
+
+const TOKEN_KEY = 'mercado.session.token';
+const USER_KEY = 'mercado.session.user';
+
+export interface AuthLocalDataSource {
+  saveSession(session: Session): Promise<void>;
+  getSession(): Promise<Session | null>;
+  clearSession(): Promise<void>;
+}
+
+function isStoredUser(value: unknown): value is User {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const validRole =
+    candidate.role === 'administrator' ||
+    candidate.role === 'auditor' ||
+    candidate.role === 'client';
+
+  return (
+    typeof candidate.id === 'number' &&
+    Number.isInteger(candidate.id) &&
+    candidate.id > 0 &&
+    typeof candidate.username === 'string' &&
+    typeof candidate.email === 'string' &&
+    typeof candidate.displayName === 'string' &&
+    validRole
+  );
+}
+
+export class SecureAuthLocalDataSource implements AuthLocalDataSource {
+  constructor(private readonly storage: SecureStorage) {}
+
+  async saveSession(session: Session): Promise<void> {
+    try {
+      await this.storage.setItem(TOKEN_KEY, session.token);
+      await this.storage.setItem(USER_KEY, JSON.stringify(session.user));
+    } catch (error) {
+      await this.clearSession();
+      throw error;
+    }
+  }
+
+  async getSession(): Promise<Session | null> {
+    const [token, serializedUser] = await Promise.all([
+      this.storage.getItem(TOKEN_KEY),
+      this.storage.getItem(USER_KEY),
+    ]);
+
+    if (!token || !serializedUser) {
+      return null;
+    }
+
+    try {
+      const user = JSON.parse(serializedUser) as unknown;
+
+      if (!isStoredUser(user)) {
+        await this.clearSession();
+        return null;
+      }
+
+      return { token, user };
+    } catch {
+      await this.clearSession();
+      return null;
+    }
+  }
+
+  async clearSession(): Promise<void> {
+    await Promise.all([
+      this.storage.removeItem(TOKEN_KEY),
+      this.storage.removeItem(USER_KEY),
+    ]);
+  }
+}

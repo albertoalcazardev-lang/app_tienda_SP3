@@ -1,56 +1,147 @@
-# Welcome to your Expo app 👋
+# Mercado - US01 Login y asignación local de perfiles
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicación móvil y web construida con React Native, Expo SDK 57, Expo Router y
+TypeScript estricto. Esta entrega implementa exclusivamente US01 y los estados
+visuales P02, P03 y P04.
 
-## Get started
+## Alcance
 
-1. Install dependencies
+- Inicio de sesión real mediante Fake Store API.
+- Validación local de usuario y contraseña.
+- Detección de conectividad antes de enviar credenciales.
+- Mensajes diferenciados para credenciales inválidas y falta de conexión.
+- Identificación del usuario autenticado y asignación local de perfil.
+- Persistencia nativa de la sesión mediante `expo-secure-store`.
+- Restauración de la sesión al abrir la aplicación.
+- Rutas públicas y protegidas con Expo Router.
+- Pantalla protegida mínima; el catálogo pertenece a historias posteriores.
 
-   ```bash
-   npm install
-   ```
+No se implementan registro, recuperación de contraseña, catálogo, carrito ni
+gestión de productos.
 
-2. Start the app
+## Requisitos
 
-   ```bash
-   npx expo start
-   ```
+- Node.js 22.13 o posterior compatible con Expo SDK 57.
+- npm.
+- Android Studio y un emulador, o Expo Go en un dispositivo compatible.
+- Visual Studio Code.
 
-In the output, you'll find options to open the app in a
+## Instalación
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+Desde la raíz del proyecto:
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+npm install
+Copy-Item .env.example .env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+La variable pública disponible es:
 
-### Other setup steps
+```env
+EXPO_PUBLIC_API_URL=https://fakestoreapi.com
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+No contiene secretos. La URL también tiene ese valor como respaldo para
+permitir el arranque cuando `.env` todavía no existe.
 
-## Learn more
+## Ejecución
 
-To learn more about developing your project with Expo, look at the following resources:
+```powershell
+npm start
+npm run android
+npm run web
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+La ejecución local de iOS requiere macOS:
 
-## Join the community
+```powershell
+npm run ios
+```
 
-Join our community of developers creating universal apps.
+Para abrir la carpeta actual en Visual Studio Code:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```powershell
+code .
+```
+
+## Verificación
+
+```powershell
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
+npx expo config
+```
+
+Las pruebas usan fakes inyectados y no requieren internet.
+
+## Cómo comprobar US01
+
+### P02 - Inicio de sesión
+
+1. Inicia la aplicación.
+2. Confirma que aparecen el logotipo, el título, ambos campos y el botón.
+3. Usa una cuenta válida publicada por Fake Store API.
+4. Confirma que el botón muestra `Iniciando sesión…` durante la solicitud.
+5. Comprueba que se abre la pantalla protegida con el perfil asignado.
+
+### P03 - Credenciales inválidas
+
+1. Introduce credenciales incorrectas.
+2. Pulsa `Iniciar sesión`.
+3. Confirma el mensaje `Usuario o contraseña inválidos`.
+4. Comprueba que el formulario conserva los datos y permite corregirlos.
+
+### P04 - Sin conexión
+
+1. Desactiva Wi-Fi y datos en el dispositivo o emulador.
+2. Completa ambos campos y pulsa `Iniciar sesión`.
+3. Confirma el mensaje `Sin conexión. Revisa tu acceso a internet.`.
+4. Recupera la conexión y vuelve a intentarlo sin reiniciar la aplicación.
+
+## Asignación de perfiles
+
+| ID de usuario              | Perfil        |
+| -------------------------- | ------------- |
+| 1 y 2                      | Administrador |
+| 3                          | Auditor       |
+| Cualquier otro ID positivo | Cliente       |
+
+La regla vive en una función pura y no se repite en pantallas.
+
+## Endpoints
+
+| Método | Ruta          | Uso                                                         |
+| ------ | ------------- | ----------------------------------------------------------- |
+| POST   | `/auth/login` | Valida las credenciales y entrega el token.                 |
+| GET    | `/users`      | Localiza el ID y los datos mínimos del usuario autenticado. |
+
+Fake Store API devuelve únicamente el token en el login y su payload contiene
+el nombre de usuario, no el ID. Por eso, después de un login exitoso, la capa de
+datos consulta usuarios y exige una coincidencia exacta antes de construir la
+sesión. Nunca se inventa un ID.
+
+## Almacenamiento
+
+En Android e iOS, el token y los datos mínimos del usuario se guardan mediante
+`expo-secure-store`. La contraseña nunca se guarda. En web, SecureStore no está
+disponible; se utiliza memoria volátil para no persistir el token en un medio
+inseguro. Por lo tanto, la sesión web se pierde al recargar.
+
+## Arquitectura
+
+Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para conocer las capas,
+la inyección de dependencias, SOLID y el flujo completo.
+
+## Limitaciones
+
+- Fake Store API es un servicio académico y su disponibilidad no está
+  garantizada.
+- El perfil es una regla local de la aplicación, no una autorización emitida
+  por el servidor.
+- La pantalla protegida es deliberadamente mínima hasta implementar P01 y P15.
+- La plantilla oficial de SDK 57 usa `src/app/` para Expo Router. No se agrega
+  otra carpeta `app/` en la raíz.
+- No se incluye `babel.config.js`: Expo SDK 57 configura Babel internamente y
+  US01 no requiere transformaciones personalizadas.

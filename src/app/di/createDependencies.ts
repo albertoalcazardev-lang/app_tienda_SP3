@@ -6,6 +6,9 @@ import { MockAuthRepository } from '@/features/auth/data/repositories/MockAuthRe
 import { GetCurrentUser } from '@/features/auth/domain/use-cases/GetCurrentUser';
 import { LoginUser } from '@/features/auth/domain/use-cases/LoginUser';
 import { LogoutUser } from '@/features/auth/domain/use-cases/LogoutUser';
+import { UserRemoteDataSource } from '@/features/users/data/datasources/UserRemoteDataSource';
+import { UserRepositoryImpl } from '@/features/users/data/repositories/UserRepositoryImpl';
+import { GetUsers } from '@/features/users/domain/use-cases/GetUsers';
 import { FetchHttpClient } from '@/shared/http/FetchHttpClient';
 import { ExpoSecureStorage } from '@/shared/storage/ExpoSecureStorage';
 
@@ -21,9 +24,14 @@ export function createDependencies(config: AppConfig = env): Dependencies {
     ? new MockAuthRepository(localDataSource)
     : new AuthRepositoryImpl(remoteDataSource, localDataSource);
 
+  const fakeStoreHttpClient = new FetchHttpClient(config.fakeStoreApiUrl);
+  const userRemoteDataSource = new UserRemoteDataSource(fakeStoreHttpClient);
+  const userRepository = new UserRepositoryImpl(userRemoteDataSource);
+
   return Object.freeze({
     loginUser: new LoginUser(authRepository),
     logoutUser: new LogoutUser(authRepository),
     getCurrentUser: new GetCurrentUser(authRepository),
+    getUsers: new GetUsers(userRepository),
   });
 }

@@ -12,6 +12,8 @@ import { ExpoSecureStorage } from '@/shared/storage/ExpoSecureStorage';
 import type { AppConfig } from '../config/env';
 import type { Dependencies } from './Dependencies';
 
+import { createInventoryDependencies } from './createInventoryDependencies';
+
 export function createDependencies(config: AppConfig = env): Dependencies {
   const httpClient = new FetchHttpClient(config.apiUrl);
   const secureStorage = new ExpoSecureStorage();
@@ -22,6 +24,7 @@ export function createDependencies(config: AppConfig = env): Dependencies {
     : new AuthRepositoryImpl(remoteDataSource, localDataSource);
 
   return Object.freeze({
+    inventory: createInventoryDependencies(authRepository),
     loginUser: new LoginUser(authRepository),
     logoutUser: new LogoutUser(authRepository),
     getCurrentUser: new GetCurrentUser(authRepository),

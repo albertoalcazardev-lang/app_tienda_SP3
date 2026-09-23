@@ -1,10 +1,11 @@
 import { AppError } from '@/shared/errors/AppError';
 
-import type { HttpClient, HttpRequestOptions } from './HttpClient';
+import type { HttpRequestOptions } from './HttpClient';
+import type { MutationHttpClient } from './MutationHttpClient';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-export class FetchHttpClient implements HttpClient {
+export class FetchHttpClient implements MutationHttpClient {
   constructor(private readonly baseUrl: string) {}
 
   get<T>(path: string, options?: HttpRequestOptions): Promise<T> {
@@ -23,6 +24,20 @@ export class FetchHttpClient implements HttpClient {
     );
   }
 
+  put<TResponse, TBody>(
+    path: string,
+    body: TBody,
+    options?: HttpRequestOptions,
+  ): Promise<TResponse> {
+    return this.request<TResponse>(
+      path,
+      { method: 'PUT', body: JSON.stringify(body) },
+      options,
+    );
+  }
+  delete<T>(path: string, options?: HttpRequestOptions): Promise<T> {
+    return this.request<T>(path, { method: 'DELETE' }, options);
+  }
   private async request<T>(
     path: string,
     init: RequestInit,

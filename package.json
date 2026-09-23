@@ -13,7 +13,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -47,5 +48,8 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
+  },
+  "overrides": {
+    "test-renderer": "1.2.0"
   }
 }

@@ -1,0 +1,32 @@
+# Dependencies and generated Expo output
+node_modules/
+.expo/
+dist/
+web-build/
+coverage/
+expo-env.d.ts
+*.tsbuildinfo
+
+# Generated native projects (Continuous Native Generation)
+/android/
+/ios/
+
+# Local environment overrides and secrets
+.env
+.env*.local
+!.env.example
+
+# Debug and editor artifacts
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Codex workspace-only directories
+/work/
+/outputs/

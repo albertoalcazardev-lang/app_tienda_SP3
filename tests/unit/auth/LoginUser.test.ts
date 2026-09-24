@@ -9,6 +9,7 @@ describe('LoginUser', () => {
     const repository: AuthRepository = {
       login: jest.fn().mockResolvedValue(sessionFixture),
       getCurrentSession: jest.fn().mockResolvedValue(null),
+      logout: jest.fn(),
     };
     const useCase = new LoginUser(repository);
 
@@ -26,6 +27,7 @@ describe('LoginUser', () => {
     const repository: AuthRepository = {
       login: jest.fn().mockRejectedValue(error),
       getCurrentSession: jest.fn().mockResolvedValue(null),
+      logout: jest.fn(),
     };
 
     await expect(
@@ -41,6 +43,7 @@ describe('LoginUser', () => {
     const repository: AuthRepository = {
       login: jest.fn().mockRejectedValue(error),
       getCurrentSession: jest.fn().mockResolvedValue(null),
+      logout: jest.fn(),
     };
 
     await expect(

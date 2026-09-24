@@ -22,6 +22,7 @@ async function renderLogin(loginResult?: Error) {
         : jest.fn(),
     },
     getCurrentSession: { execute: jest.fn().mockResolvedValue(null) },
+    logoutUser: { execute: jest.fn() },
   };
 
   function Wrapper({ children }: PropsWithChildren) {

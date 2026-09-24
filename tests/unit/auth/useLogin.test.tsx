@@ -39,6 +39,7 @@ describe('useLogin', () => {
     const dependencies: Dependencies = {
       loginUser: { execute },
       getCurrentSession: { execute: jest.fn().mockResolvedValue(null) },
+      logoutUser: { execute: jest.fn() },
     };
     const { result } = await renderHook(() => useLogin(), {
       wrapper: createWrapper(dependencies),
@@ -78,6 +79,7 @@ describe('useLogin', () => {
           ),
       },
       getCurrentSession: { execute: jest.fn().mockResolvedValue(null) },
+      logoutUser: { execute: jest.fn() },
     };
     const { result } = await renderHook(() => useLogin(), {
       wrapper: createWrapper(dependencies),
@@ -102,6 +104,7 @@ describe('useLogin', () => {
     const dependencies: Dependencies = {
       loginUser: { execute },
       getCurrentSession: { execute: jest.fn().mockResolvedValue(null) },
+      logoutUser: { execute: jest.fn() },
     };
     const { result } = await renderHook(() => useLogin(), {
       wrapper: createWrapper(dependencies),

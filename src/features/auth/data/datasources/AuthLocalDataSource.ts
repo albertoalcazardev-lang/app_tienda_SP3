@@ -1,10 +1,13 @@
 import type { SecureStorage } from '@/shared/storage/SecureStorage';
+import { AppError } from '@/shared/errors/AppError';
 
 import type { Session } from '../../domain/entities/Session';
 import type { User } from '../../domain/entities/User';
 
-const TOKEN_KEY = 'mercado.session.token';
-const USER_KEY = 'mercado.session.user';
+export const AUTH_STORAGE_KEYS = Object.freeze({
+  token: 'mercado.session.token',
+  user: 'mercado.session.user',
+});
 
 export interface AuthLocalDataSource {
   saveSession(session: Session): Promise<void>;
@@ -39,18 +42,25 @@ export class SecureAuthLocalDataSource implements AuthLocalDataSource {
 
   async saveSession(session: Session): Promise<void> {
     try {
-      await this.storage.setItem(TOKEN_KEY, session.token);
-      await this.storage.setItem(USER_KEY, JSON.stringify(session.user));
+      await this.storage.setItem(AUTH_STORAGE_KEYS.token, session.token);
+      await this.storage.setItem(
+        AUTH_STORAGE_KEYS.user,
+        JSON.stringify(session.user),
+      );
     } catch (error) {
-      await this.clearSession();
-      throw error;
+      await this.clearSession().catch(() => undefined);
+      throw new AppError(
+        'secure-storage',
+        'No fue posible guardar la sesión de forma segura.',
+        { cause: error },
+      );
     }
   }
 
   async getSession(): Promise<Session | null> {
     const [token, serializedUser] = await Promise.all([
-      this.storage.getItem(TOKEN_KEY),
-      this.storage.getItem(USER_KEY),
+      this.storage.getItem(AUTH_STORAGE_KEYS.token),
+      this.storage.getItem(AUTH_STORAGE_KEYS.user),
     ]);
 
     if (!token || !serializedUser) {
@@ -73,9 +83,20 @@ export class SecureAuthLocalDataSource implements AuthLocalDataSource {
   }
 
   async clearSession(): Promise<void> {
-    await Promise.all([
-      this.storage.removeItem(TOKEN_KEY),
-      this.storage.removeItem(USER_KEY),
+    const results = await Promise.allSettled([
+      this.storage.removeItem(AUTH_STORAGE_KEYS.token),
+      this.storage.removeItem(AUTH_STORAGE_KEYS.user),
     ]);
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+
+    if (failure) {
+      throw new AppError(
+        'secure-storage',
+        'No fue posible eliminar completamente la sesión local.',
+        { cause: failure.reason },
+      );
+    }
   }
 }

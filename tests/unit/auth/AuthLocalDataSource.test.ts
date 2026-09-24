@@ -1,10 +1,16 @@
-import { SecureAuthLocalDataSource } from '@/features/auth/data/datasources/AuthLocalDataSource';
+import {
+  AUTH_STORAGE_KEYS,
+  SecureAuthLocalDataSource,
+} from '@/features/auth/data/datasources/AuthLocalDataSource';
 import type { SecureStorage } from '@/shared/storage/SecureStorage';
 
 import { sessionFixture } from './fixtures';
 
 class MemorySecureStorage implements SecureStorage {
   readonly values = new Map<string, string>();
+  readonly removedKeys: string[] = [];
+
+  constructor(private readonly failingKey?: string) {}
 
   async getItem(key: string): Promise<string | null> {
     return this.values.get(key) ?? null;
@@ -15,6 +21,12 @@ class MemorySecureStorage implements SecureStorage {
   }
 
   async removeItem(key: string): Promise<void> {
+    this.removedKeys.push(key);
+
+    if (key === this.failingKey) {
+      throw new Error('Fallo de almacenamiento simulado.');
+    }
+
     this.values.delete(key);
   }
 }
@@ -42,5 +54,44 @@ describe('SecureAuthLocalDataSource', () => {
 
     await expect(dataSource.getSession()).resolves.toBeNull();
     expect(storage.values.size).toBe(0);
+  });
+
+  it('elimina todas las claves de autenticación sin tocar información ajena', async () => {
+    const storage = new MemorySecureStorage();
+    storage.values.set(AUTH_STORAGE_KEYS.token, sessionFixture.token);
+    storage.values.set(
+      AUTH_STORAGE_KEYS.user,
+      JSON.stringify(sessionFixture.user),
+    );
+    storage.values.set('mercado.public.preference', 'compacto');
+    const dataSource = new SecureAuthLocalDataSource(storage);
+
+    await dataSource.clearSession();
+
+    expect(storage.removedKeys).toEqual(
+      expect.arrayContaining([AUTH_STORAGE_KEYS.token, AUTH_STORAGE_KEYS.user]),
+    );
+    expect(storage.values.has(AUTH_STORAGE_KEYS.token)).toBe(false);
+    expect(storage.values.has(AUTH_STORAGE_KEYS.user)).toBe(false);
+    expect(storage.values.get('mercado.public.preference')).toBe('compacto');
+  });
+
+  it('es idempotente cuando las claves ya no existen', async () => {
+    const dataSource = new SecureAuthLocalDataSource(new MemorySecureStorage());
+
+    await expect(dataSource.clearSession()).resolves.toBeUndefined();
+    await expect(dataSource.clearSession()).resolves.toBeUndefined();
+  });
+
+  it('intenta eliminar todas las claves y expone un error tipado si falla el almacenamiento', async () => {
+    const storage = new MemorySecureStorage(AUTH_STORAGE_KEYS.token);
+    const dataSource = new SecureAuthLocalDataSource(storage);
+
+    await expect(dataSource.clearSession()).rejects.toMatchObject({
+      code: 'secure-storage',
+    });
+    expect(storage.removedKeys).toEqual(
+      expect.arrayContaining([AUTH_STORAGE_KEYS.token, AUTH_STORAGE_KEYS.user]),
+    );
   });
 });

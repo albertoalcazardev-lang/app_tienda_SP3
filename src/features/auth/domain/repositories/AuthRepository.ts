@@ -8,4 +8,5 @@ export interface LoginCredentials {
 export interface AuthRepository {
   login(credentials: LoginCredentials): Promise<Session>;
   getCurrentSession(): Promise<Session | null>;
+  logout(): Promise<void>;
 }

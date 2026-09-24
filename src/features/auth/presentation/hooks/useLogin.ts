@@ -25,6 +25,10 @@ function toUserMessage(error: unknown): string {
       return 'La respuesta del servidor no es válida.';
     case 'timeout':
       return 'La solicitud tardó demasiado. Inténtalo nuevamente.';
+    case 'secure-storage':
+      return 'No pudimos guardar tu sesión de forma segura.';
+    case 'session-expired':
+      return 'Tu sesión expiró. Inicia sesión nuevamente.';
     case 'unexpected':
       return 'No pudimos iniciar sesión. Inténtalo nuevamente.';
   }

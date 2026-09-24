@@ -11,12 +11,15 @@ import { AppError } from '@/shared/errors/AppError';
 import { sessionFixture, userDto } from './fixtures';
 
 class FakeRemoteDataSource implements AuthRemoteDataSource {
+  loginCalls = 0;
+
   constructor(
     private readonly result: RemoteLoginResult | null,
     private readonly failure?: Error,
   ) {}
 
   async login(): Promise<RemoteLoginResult> {
+    this.loginCalls += 1;
     if (this.failure) {
       throw this.failure;
     }
@@ -29,8 +32,12 @@ class FakeRemoteDataSource implements AuthRemoteDataSource {
 
 class FakeLocalDataSource implements AuthLocalDataSource {
   savedSession: Session | null = null;
+  clearCalls = 0;
 
-  constructor(private readonly restoredSession: Session | null = null) {}
+  constructor(
+    private readonly restoredSession: Session | null = null,
+    private readonly clearFailure?: Error,
+  ) {}
 
   async saveSession(session: Session): Promise<void> {
     this.savedSession = session;
@@ -41,6 +48,12 @@ class FakeLocalDataSource implements AuthLocalDataSource {
   }
 
   async clearSession(): Promise<void> {
+    this.clearCalls += 1;
+
+    if (this.clearFailure) {
+      throw this.clearFailure;
+    }
+
     this.savedSession = null;
   }
 }
@@ -93,5 +106,31 @@ describe('AuthRepositoryImpl', () => {
     await expect(repository.getCurrentSession()).resolves.toEqual(
       sessionFixture,
     );
+  });
+
+  it('cierra localmente sin inventar una petición remota', async () => {
+    const remote = new FakeRemoteDataSource(null);
+    const local = new FakeLocalDataSource(sessionFixture);
+    const repository = new AuthRepositoryImpl(remote, local, new UserMapper());
+
+    await repository.logout();
+
+    expect(local.clearCalls).toBe(1);
+    expect(remote.loginCalls).toBe(0);
+  });
+
+  it('propaga el fallo de limpieza local para no declarar un cierre falso', async () => {
+    const storageError = new AppError(
+      'secure-storage',
+      'No se pudo limpiar la sesión.',
+    );
+    const local = new FakeLocalDataSource(sessionFixture, storageError);
+    const repository = new AuthRepositoryImpl(
+      new FakeRemoteDataSource(null),
+      local,
+      new UserMapper(),
+    );
+
+    await expect(repository.logout()).rejects.toBe(storageError);
   });
 });

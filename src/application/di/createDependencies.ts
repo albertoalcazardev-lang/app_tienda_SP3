@@ -5,6 +5,7 @@ import { UserMapper } from '@/features/auth/data/mappers/UserMapper';
 import { AuthRepositoryImpl } from '@/features/auth/data/repositories/AuthRepositoryImpl';
 import { GetCurrentSession } from '@/features/auth/domain/use-cases/GetCurrentSession';
 import { LoginUser } from '@/features/auth/domain/use-cases/LoginUser';
+import { LogoutUser } from '@/features/auth/domain/use-cases/LogoutUser';
 import { ExpoConnectivity } from '@/shared/http/ExpoConnectivity';
 import { FetchHttpClient } from '@/shared/http/FetchHttpClient';
 import { ExpoSecureStorage } from '@/shared/storage/ExpoSecureStorage';
@@ -29,5 +30,6 @@ export function createDependencies(): Dependencies {
   return {
     loginUser: new LoginUser(authRepository),
     getCurrentSession: new GetCurrentSession(authRepository),
+    logoutUser: new LogoutUser(authRepository),
   };
 }

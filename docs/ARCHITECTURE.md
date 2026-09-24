@@ -1,177 +1,215 @@
-# Arquitectura de Mercado US01
+# Arquitectura de Mercado - US01 y US02
 
 ## Objetivo
 
-US01 autentica a una persona, identifica su ID real, asigna un perfil local,
-persiste una sesión mínima y protege la navegación. La solución utiliza Clean
-Architecture ligera, casos de uso, Repository Pattern, Data Source Pattern e
-inyección manual mediante constructor.
+La solución autentica, restaura y cierra una sesión sin acoplar el dominio a
+React, Expo Router, HTTP o SecureStore. US02 extiende los contratos existentes
+sin reconstruir US01 ni añadir funcionalidades de otras historias.
 
 ## Estructura
 
 ```text
 src/
-├── app/
-│   └── rutas Expo Router  Rutas públicas, protegidas y redirección inicial.
+├── app/                         Rutas y layouts exclusivos de Expo Router.
 ├── application/
-│   ├── config/            Configuración de entorno.
-│   ├── di/                Composition Root y contratos de dependencias.
-│   └── providers/         Montaje de providers globales.
+│   ├── config/                  Configuración del entorno.
+│   ├── di/                      Contratos y Composition Root.
+│   └── providers/               Montaje de providers globales.
 ├── features/auth/
-│   ├── domain/            Entidades, contratos, regla de roles y casos de uso.
-│   ├── data/              DTO, mapper, data sources y repositorio concreto.
-│   └── presentation/      Componentes, pantallas y hooks controladores.
+│   ├── domain/
+│   │   ├── entities/            Session, User y UserRole.
+│   │   ├── repositories/        Contrato AuthRepository.
+│   │   ├── services/            Regla pura de perfiles.
+│   │   └── use-cases/           LoginUser, GetCurrentSession y LogoutUser.
+│   ├── data/
+│   │   ├── datasources/         API y persistencia segura.
+│   │   ├── dto/                 Contratos externos.
+│   │   ├── mappers/             Conversión hacia dominio.
+│   │   └── repositories/        AuthRepositoryImpl.
+│   └── presentation/
+│       ├── components/          Formularios, botón y confirmación.
+│       ├── hooks/               Controladores equivalentes a ViewModels.
+│       └── screens/             Login y cuenta protegida.
 └── shared/
-    ├── errors/            Errores tipados independientes de la interfaz.
-    ├── http/              Cliente fetch y abstracción de conectividad.
-    ├── storage/           Contrato e implementación de almacenamiento seguro.
-    └── theme/             Tokens visuales compartidos.
+    ├── errors/                  Errores tipados.
+    ├── http/                    Cliente y conectividad.
+    ├── storage/                 Abstracción SecureStorage.
+    └── theme/                   Colores, espaciado, radios y sombras.
 ```
 
-Los archivos de ruta permanecen delgados y solo renderizan pantallas o
-layouts. Ningún componente visual ejecuta `fetch` ni accede a SecureStore.
+La plantilla de Expo SDK 57 usa `src/app` como raíz de rutas. Para evitar que
+Expo Router interprete configuración o providers como pantallas, estos viven
+en `src/application`, equivalente a la capa `src/app` descrita en el contrato.
 
-## Flujo de dependencias
+## Dependency Injection
+
+```text
+ExpoSecureStorage
+        |
+        v
+SecureAuthLocalDataSource
+        |
+        v
+AuthRepositoryImpl
+        |
+        v
+LogoutUser
+        |
+        v
+DependenciesProvider
+        |
+        v
+useLogout
+        |
+        v
+ProtectedHomeScreen
+```
+
+El mismo repositorio conserva el flujo remoto de US01:
 
 ```text
 FetchHttpClient + ExpoConnectivity
               |
               v
-   ApiAuthRemoteDataSource
+ApiAuthRemoteDataSource
               |
               v
-      AuthRepositoryImpl <--- SecureAuthLocalDataSource <--- ExpoSecureStorage
+AuthRepositoryImpl
               |
               v
- LoginUser / GetCurrentSession
-              |
-              v
-      DependenciesProvider
-              |
-              v
-     useLogin / useSession
-              |
-              v
- LoginScreen / Expo Router
+LoginUser / GetCurrentSession
 ```
 
-`createDependencies.ts` es el Composition Root. Es el único lugar que conoce
-las implementaciones concretas y conecta cada abstracción con su adaptador.
+`createDependencies.ts` es el único Composition Root. Pantallas, componentes,
+hooks y rutas no construyen implementaciones concretas.
 
-## Flujo de inicio de sesión
+## Flujo de US02
 
-1. `SessionProvider` ejecuta `GetCurrentSession` al iniciar.
-2. Mientras restaura, la aplicación conserva un estado `loading` y no muestra
-   una ruta incorrecta.
-3. Sin sesión, Expo Router habilita el grupo `(auth)` y bloquea `(main)`.
-4. `useLogin` valida campos y evita envíos duplicados.
-5. `ApiAuthRemoteDataSource` consulta `ExpoConnectivity`.
-6. Sin red, lanza un error `offline` antes de utilizar el cliente HTTP.
-7. Con red, envía `POST /auth/login`.
-8. Una respuesta 400, 401 o 403 se convierte en `invalid-credentials`.
-9. Una respuesta exitosa debe incluir un token no vacío.
-10. Como el token de Fake Store no contiene el ID, se ejecuta `GET /users` y
-    se localiza el nombre de usuario exacto.
-11. `UserMapper` transforma el DTO y `resolveUserRole` asigna el perfil.
-12. `AuthRepositoryImpl` guarda la sesión solamente después de completar toda
-    la validación.
-13. `useSession` actualiza el estado global y Expo Router habilita `(main)`.
-14. La navegación usa reemplazo; Atrás no recupera Login.
+1. `ProtectedHomeScreen` representa P13 para una sesión autenticada.
+2. `LogoutButton` notifica la intención, pero no elimina datos.
+3. `useLogout.requestLogout` abre `LogoutConfirmation`.
+4. Cancelar cierra únicamente el modal.
+5. Confirmar activa un cerrojo síncrono para evitar doble envío.
+6. `useLogout` ejecuta el caso de uso inyectado `LogoutUser`.
+7. `LogoutUser` delega en el contrato `AuthRepository.logout`.
+8. `AuthRepositoryImpl` coordina la limpieza local obligatoria.
+9. `SecureAuthLocalDataSource` intenta eliminar todas las claves de sesión.
+10. Solo después del éxito, el hook limpia `SessionProvider`.
+11. El estado cambia a `unauthenticated` y `Stack.Protected` retira `(main)`.
+12. `router.replace` dirige al Login y P14 muestra el aviso de éxito.
 
-## Persistencia segura
+## Cierre remoto
 
-`SecureAuthLocalDataSource` guarda dos valores:
+Fake Store API documenta únicamente `POST /auth/login`; no publica un endpoint
+de logout. `AuthRemoteDataSource` no contiene una petición simulada y
+`AuthRepositoryImpl.logout` no llama a red.
 
-- Token.
-- Usuario mínimo: ID, usuario, correo, nombre visible y rol.
+La decisión es: **cierre remoto de mejor esfuerzo y cierre local obligatorio**.
+Si el backend incorpora logout, el repositorio intentará la operación remota y
+ejecutará la limpieza local en un bloque que no dependa de su éxito. Un error
+remoto nunca debe conservar la sesión en el dispositivo.
 
-No guarda la contraseña. Si la escritura queda incompleta o los datos
-persistidos no son válidos, limpia ambas claves y devuelve una sesión nula.
+## Limpieza local e idempotencia
 
-`ExpoSecureStorage` utiliza el almacén cifrado del sistema en Android y el
-Keychain en iOS. En web usa memoria volátil, ya que SecureStore no ofrece un
-almacén web nativo y no se desea degradar la seguridad con almacenamiento
-persistente sin cifrar.
+`AUTH_STORAGE_KEYS` centraliza:
+
+- `mercado.session.token`.
+- `mercado.session.user`.
+
+El segundo valor contiene ID, rol y datos mínimos. La contraseña nunca se
+guarda. `clearSession` utiliza `Promise.allSettled` para intentar ambas
+eliminaciones incluso si una falla. El adaptador SecureStore acepta eliminar
+claves inexistentes, por lo que ejecutar logout varias veces es válido.
+
+Si alguna eliminación falla, se lanza `AppError('secure-storage')`. El hook
+mantiene la confirmación, no limpia falsamente la sesión en memoria, no navega
+y permite reintentar.
+
+No existe TanStack Query ni otra caché global. La limpieza en memoria elimina
+`Session`, `User` y `UserRole` del `SessionProvider`. El contador interno de
+restauración invalida resultados asíncronos anteriores para impedir que una
+sesión eliminada reaparezca.
+
+## Estado y navegación
+
+`SessionProvider` mantiene responsabilidades distintas a las del modal:
+
+- `loading`: restauración pendiente.
+- `authenticated`: existe una sesión válida.
+- `unauthenticated`: no existe sesión activa.
+- `notice`: mensaje transitorio mostrado después del cierre.
+
+La visibilidad, carga y error de la confirmación pertenecen a `useLogout`.
+`Stack.Protected` bloquea rutas profundas y elimina pantallas protegidas cuando
+el guard cambia. `router.replace` evita añadir Login sobre el historial.
+
+## Componentes de presentación
+
+- `LogoutButton.tsx`: área táctil, rol, label y estado deshabilitado.
+- `LogoutConfirmation.tsx`: `Modal` transparente, bloqueo del fondo,
+  `onRequestClose` en Android, acciones accesibles, error y carga.
+- `ProtectedHomeScreen.tsx`: P13, información del usuario y composición
+  inferior no funcional.
+- `LoginScreen.tsx`: conserva P02-P04 y agrega el resultado P14.
+
+El PDF no contiene una pantalla de confirmación: P14 es el Login posterior al
+cierre. Se añadió el modal exigido por los criterios funcionales y se conservó
+P14 como resultado con el texto exacto del aviso.
 
 ## Errores tipados
 
-La infraestructura distingue:
+`AppError` distingue credenciales, falta de conexión, respuesta inválida,
+timeout, sesión expirada, almacenamiento seguro y error inesperado. En US02,
+el fallo crítico es `secure-storage`; no se muestran claves, tokens, headers,
+endpoints ni stack traces.
 
-- `invalid-credentials`
-- `offline`
-- `invalid-response`
-- `timeout`
-- `unexpected`
-
-Solo `useLogin` traduce estos códigos a mensajes de presentación. Ninguna
-pantalla recibe endpoints, códigos HTTP, tokens o stack traces.
-
-## Aplicación de SOLID
+## SOLID con archivos concretos
 
 ### Responsabilidad única
 
-- `LoginScreen` renderiza.
-- `useLogin` coordina el estado de presentación.
-- `LoginUser` ejecuta el caso de uso.
-- `AuthRepositoryImpl` coordina orígenes de datos.
-- Los data sources encapsulan API y almacenamiento.
-- `UserMapper` transforma DTO en entidad.
-- `createDependencies` construye el grafo.
+- `LogoutButton`: representa la acción.
+- `LogoutConfirmation`: solicita una decisión.
+- `useLogout`: coordina estado de presentación y navegación.
+- `LogoutUser`: expresa el caso de uso.
+- `AuthRepositoryImpl`: coordina orígenes de autenticación.
+- `SecureAuthLocalDataSource`: administra persistencia de sesión.
+- `SessionProvider`: conserva el estado global.
+- `createDependencies`: construye el grafo.
 
 ### Abierto/cerrado
 
-`HttpClient`, `Connectivity` y `SecureStorage` pueden sustituirse sin modificar
-el caso de uso ni la pantalla.
+`SecureStorage`, `AuthLocalDataSource` y `AuthRepository` permiten reemplazar
+infraestructura sin modificar `LogoutUser`.
 
 ### Sustitución de Liskov
 
-Las pruebas sustituyen contratos reales por fakes en memoria y conservan el
-mismo comportamiento observable.
+Los fakes de Jest sustituyen casos de uso, repositorios, data sources y
+almacenamiento respetando sus contratos asíncronos.
 
 ### Segregación de interfaces
 
-Los contratos de US01 contienen únicamente operaciones de autenticación,
-conectividad, HTTP o almacenamiento. No mezclan productos, carrito o usuarios
-administrativos.
+`AuthRepository` contiene login, restauración y logout. No recibe operaciones
+de catálogo, carrito o productos. `SecureStorage` mantiene solamente lectura,
+escritura y eliminación de valores.
 
 ### Inversión de dependencias
 
-Los casos de uso dependen de `AuthRepository`; el repositorio depende de
-contratos de data source; la presentación recibe casos de uso por Context.
-
-## Navegación
-
-- `src/app/(auth)`: grupo público.
-- `src/app/(main)`: grupo protegido.
-- `Stack.Protected` selecciona el grupo accesible según el estado de sesión.
-- `src/app/index.tsx` redirige al destino correspondiente.
-- La restauración se completa antes de montar el navegador.
-
-Esta protección es del cliente. La regla local de perfiles controla la futura
-interfaz, pero no sustituye autorización real en un servidor.
-
-## Diseño P02-P04
-
-- Fondo azul hielo/gris lavanda.
-- Marca provisional `m` en recuadro índigo.
-- Campos blancos con etiquetas visibles.
-- Acción primaria índigo de ancho completo.
-- Banners rosa claro con texto explícito y región accesible.
-- `SafeAreaView`, scroll y ajuste de teclado.
-- Ancho máximo para pantallas amplias y margen adaptable desde 320 px.
-
-P02 muestra el formulario normal. P03 agrega credenciales inválidas. P04 agrega
-el aviso de falta de conexión. Los mensajes no dependen únicamente del color.
+`LogoutUser` recibe `AuthRepository` por constructor. No importa React,
+SecureStore, Expo Router, `fetch` ni implementaciones concretas.
 
 ## Estrategia de pruebas
 
-Las pruebas viven fuera de `src/app` y no consumen internet. Cubren:
+Las pruebas no usan internet y cubren:
 
-- Regla de perfiles.
-- Casos de uso.
-- Solicitudes y respuestas del data source remoto.
-- Ausencia de HTTP sin conexión.
-- Persistencia, restauración y descarte de datos incompletos.
-- Mapeo y coordinación del repositorio.
-- Estado del hook, doble envío y navegación.
-- Representación de P02, P03 y P04.
+- Ejecución e idempotencia de `LogoutUser`.
+- Eliminación de todas las claves y conservación de datos ajenos.
+- Propagación de fallos reales de almacenamiento.
+- Ausencia de peticiones ficticias de logout.
+- Apertura, cancelación, carga, doble confirmación y reintento del hook.
+- P13, confirmación accesible y P14.
+- Regresión completa de login, conectividad, roles, persistencia y navegación
+  de US01.
+
+El movimiento físico de foco del lector de pantalla se valida manualmente en
+Android/iOS; las pruebas automáticas verifican labels, modalidad, roles y orden
+estructural.

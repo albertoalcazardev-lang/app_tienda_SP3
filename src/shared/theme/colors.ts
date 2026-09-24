@@ -8,8 +8,10 @@ export const colors = Object.freeze({
   textSecondary: '#5F6D89',
   border: '#D8DEEB',
   error: '#C92A45',
+  errorPressed: '#A61E38',
   errorBackground: '#FFE9EE',
   success: '#087F5B',
   successBackground: '#E6F7F1',
+  modalBackdrop: 'rgba(24, 34, 56, 0.55)',
   white: '#FFFFFF',
 });

@@ -12,9 +12,11 @@ import { colors, radii, shadows, spacing, typography } from '@/shared/theme';
 
 import { LoginForm } from '../components/LoginForm';
 import { useLogin } from '../hooks/useLogin';
+import { useSession } from '../hooks/useSession';
 
 export function LoginScreen() {
   const login = useLogin();
+  const { notice } = useSession();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -40,6 +42,18 @@ export function LoginScreen() {
               </Text>
               <Text style={styles.subtitle}>Inicia sesión en Mercado.</Text>
             </View>
+
+            {notice ? (
+              <View
+                accessibilityLabel={notice}
+                accessibilityLiveRegion="polite"
+                accessibilityRole="alert"
+                style={styles.successBanner}
+                testID="session-closed-banner"
+              >
+                <Text style={styles.successText}>{notice}</Text>
+              </View>
+            ) : null}
 
             {login.errorMessage ? (
               <View
@@ -155,6 +169,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.errorBackground,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
+  },
+  successBanner: {
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: radii.sm,
+    backgroundColor: colors.successBackground,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  successText: {
+    color: colors.success,
+    fontSize: typography.label,
+    lineHeight: 20,
   },
   errorSymbol: {
     width: 20,

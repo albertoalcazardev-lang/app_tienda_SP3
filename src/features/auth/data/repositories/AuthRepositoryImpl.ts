@@ -28,4 +28,10 @@ export class AuthRepositoryImpl implements AuthRepository {
   getCurrentSession(): Promise<Session | null> {
     return this.localDataSource.getSession();
   }
+
+  logout(): Promise<void> {
+    // Fake Store API no publica un endpoint de cierre de sesión. La limpieza
+    // local es obligatoria y clearSession es segura cuando no existen claves.
+    return this.localDataSource.clearSession();
+  }
 }

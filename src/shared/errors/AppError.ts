@@ -2,6 +2,8 @@ export type AppErrorCode =
   | 'invalid-credentials'
   | 'offline'
   | 'invalid-response'
+  | 'secure-storage'
+  | 'session-expired'
   | 'timeout'
   | 'unexpected';
 

@@ -43,7 +43,6 @@ flowchart TD
     Screen --> Hook["useLogin"]
     Hook --> UseCase["LoginUser"]
     UseCase --> Contract["AuthRepository"]
-    Mock["MockAuthRepository"] -. implementa .-> Contract
     RemoteRepo["AuthRepositoryImpl"] -. implementa .-> Contract
     RemoteRepo --> Remote["AuthRemoteDataSource"]
     RemoteRepo --> Local["AuthLocalDataSource"]
@@ -55,7 +54,7 @@ flowchart TD
 2. `LoginForm` valida con React Hook Form y Zod.
 3. `useLogin` obtiene `LoginUser` mediante `useDependencies`.
 4. `LoginUser` depende únicamente de `AuthRepository`.
-5. El Composition Root elige mock o remoto con configuración validada.
+5. El Composition Root construye la implementación real con configuración validada.
 6. El repositorio coordina Data Sources, mapea el DTO y persiste la sesión.
 7. `SessionProvider` guarda el usuario autenticado y la ruta protegida se habilita.
 
@@ -74,13 +73,13 @@ imports externos o de capas internas que romperían esta dirección.
 
 ## SOLID verificable
 
-| Principio | Archivo                                                                                              | Aplicación                                                                                                     | Beneficio                                                 |
-| --------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| SRP       | `LoginScreen.tsx`, `useLogin.ts`, `LoginUser.ts`, `AuthRepositoryImpl.ts`, `AuthRemoteDataSource.ts` | Cada archivo renderiza, coordina presentación, ejecuta negocio, orquesta datos o conoce HTTP, respectivamente. | Cambios de UI, negocio e infraestructura no se mezclan.   |
-| OCP       | `createDependencies.ts`                                                                              | Selecciona `MockAuthRepository` o `AuthRepositoryImpl` sin modificar casos de uso o pantallas.                 | Se agregan implementaciones sin reescribir consumidores.  |
-| LSP       | `AuthRepository.ts`, `MockAuthRepository.ts`, `AuthRepositoryImpl.ts`                                | Ambas implementaciones respetan `login`, `logout` y `getCurrentUser`, incluidos persistencia y errores.        | El modo mock sustituye al remoto en desarrollo y pruebas. |
-| ISP       | `HttpClient.ts`, `SecureStorage.ts`, `AuthRepository.ts`                                             | Contratos pequeños y específicos; no existe un repositorio o servicio universal.                               | Fakes sencillos y consumidores con dependencias mínimas.  |
-| DIP       | `LoginUser.ts`, `LogoutUser.ts`, `GetCurrentUser.ts`                                                 | Los casos de uso reciben `AuthRepository`, nunca `fetch`, Expo SecureStore ni clases concretas.                | Dominio aislado, portable y probado sin React Native.     |
+| Principio | Archivo                                                                                              | Aplicación                                                                                                     | Beneficio                                                |
+| --------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| SRP       | `LoginScreen.tsx`, `useLogin.ts`, `LoginUser.ts`, `AuthRepositoryImpl.ts`, `AuthRemoteDataSource.ts` | Cada archivo renderiza, coordina presentación, ejecuta negocio, orquesta datos o conoce HTTP, respectivamente. | Cambios de UI, negocio e infraestructura no se mezclan.  |
+| OCP       | `createDependencies.ts`                                                                              | Conecta contratos e implementaciones sin modificar casos de uso o pantallas.                                   | Se agregan implementaciones sin reescribir consumidores. |
+| LSP       | `AuthRepository.ts`, `AuthRepositoryImpl.ts`                                                         | La implementación respeta `login`, `logout` y `getCurrentSession`, incluidos persistencia y errores.           | Los dobles de prueba sustituyen al repositorio real.     |
+| ISP       | `HttpClient.ts`, `SecureStorage.ts`, `AuthRepository.ts`                                             | Contratos pequeños y específicos; no existe un repositorio o servicio universal.                               | Fakes sencillos y consumidores con dependencias mínimas. |
+| DIP       | `LoginUser.ts`, `LogoutUser.ts`, `GetCurrentUser.ts`                                                 | Los casos de uso reciben `AuthRepository`, nunca `fetch`, Expo SecureStore ni clases concretas.                | Dominio aislado, portable y probado sin React Native.    |
 
 ## Estado
 
@@ -109,14 +108,14 @@ con el backend; la entidad es el contrato estable que consumen los casos de uso.
 - No hay ViewModels de clase, Redux, Zustand o un bus de eventos.
 - No hay interfaz para componentes o helpers puros.
 - No hay una capa `services/` genérica.
-- El mock usa el mismo almacenamiento local real para demostrar el flujo completo.
+- Los dobles de prueba se inyectan únicamente desde las pruebas, nunca en el runtime normal.
 - El tema contiene solo tokens usados actualmente.
 - No se generaron proyectos nativos.
 
 ## Sustituir implementaciones
 
-Para usar el backend, establece `EXPO_PUBLIC_USE_MOCKS=false`. El Composition Root
-creará `FetchHttpClient`, ambos Data Sources y `AuthRepositoryImpl`. `LoginUser`,
+El Composition Root crea `FetchHttpClient`, conectividad, ambos Data Sources y
+`AuthRepositoryImpl`. `LoginUser`,
 `useLogin` y `LoginScreen` permanecen sin cambios.
 
 Para sustituir HTTP o almacenamiento en pruebas, implementa los contratos pequeños y

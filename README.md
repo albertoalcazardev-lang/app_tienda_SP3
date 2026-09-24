@@ -20,11 +20,11 @@ npm install
 ```
 
 Copia `.env.example` como `.env` y ajusta los valores. Si no existe `.env`, la
-aplicación usa el repositorio mock y `https://api.example.com` como URL de reserva.
+aplicación usa Fake Store API y un tiempo límite de 10 segundos.
 
 ```env
-EXPO_PUBLIC_API_URL=https://api.example.com
-EXPO_PUBLIC_USE_MOCKS=true
+EXPO_PUBLIC_API_URL=https://fakestoreapi.com
+EXPO_PUBLIC_REQUEST_TIMEOUT_MS=10000
 ```
 
 Las variables `EXPO_PUBLIC_*` quedan incluidas en el bundle de la aplicación. Nunca
@@ -42,13 +42,14 @@ npm run web
 En Expo Go, escanea el QR que muestra `npm start`. El teléfono y el equipo deben estar
 en la misma red, salvo que se utilice el modo túnel.
 
-### Credenciales de demostración
+### Credenciales de Fake Store API
 
-- Correo: `demo@demo.com`
-- Contraseña: `Demo1234`
+- Usuario administrador: `johnd`
+- Contraseña: `m38rmF$`
 
-Estas credenciales solo existen en `MockAuthRepository` y no forman parte de la
-implementación remota.
+La aplicación envía usuario y contraseña a `POST /auth/login`, obtiene el perfil
+desde `GET /users` y asigna el rol según el ID: 1–2 Administrador, 3 Auditor y el
+resto Cliente.
 
 ## Calidad
 
@@ -61,15 +62,14 @@ npm test
 npx expo config --type public
 ```
 
-## Seleccionar repositorio mock o remoto
+## Autenticación y cierre de sesión
 
-- `EXPO_PUBLIC_USE_MOCKS=true`: usa `MockAuthRepository`, persiste la sesión en
-  SecureStore y no necesita backend.
-- `EXPO_PUBLIC_USE_MOCKS=false`: usa `AuthRepositoryImpl`, preparado para:
-  `POST /auth/login`, `GET /auth/me` y `POST /auth/logout`.
+- El runtime siempre usa `AuthRepositoryImpl`; no existe un mock habilitado en producción.
+- El inicio de sesión consume `POST /auth/login` y `GET /users`.
+- Token y usuario mínimo se almacenan por separado en SecureStore; nunca se guarda la contraseña.
+- Fake Store API no ofrece logout. US02 elimina localmente ambas claves después de una confirmación.
 
-El cambio se decide exclusivamente en `src/app/di/createDependencies.ts`. Pantallas,
-hooks y casos de uso no cambian.
+Todas las implementaciones se conectan en `src/app/di/createDependencies.ts`.
 
 ## Agregar una funcionalidad
 

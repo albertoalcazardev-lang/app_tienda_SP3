@@ -1,52 +1,83 @@
 import { AppError } from '@/shared/errors/AppError';
-
 import type { SecureStorage } from '@/shared/storage/SecureStorage';
-import type { AuthSessionDto } from '../dto/UserDto';
-import { isUserDto } from './AuthRemoteDataSource';
 
-const SESSION_KEY = 'auth.session.v1';
+import type { Session } from '../../domain/entities/Session';
+import type { User } from '../../domain/entities/User';
+
+export const AUTH_STORAGE_KEYS = Object.freeze({
+  token: 'mercado.session.token',
+  user: 'mercado.session.user',
+});
 
 export interface AuthLocalDataSourceContract {
-  getSession(): Promise<AuthSessionDto | null>;
-  saveSession(session: AuthSessionDto): Promise<void>;
+  saveSession(session: Session): Promise<void>;
+  getSession(): Promise<Session | null>;
   clearSession(): Promise<void>;
+}
+
+function isStoredUser(value: unknown): value is User {
+  if (typeof value !== 'object' || value === null) return false;
+  const user = value as Record<string, unknown>;
+  return (
+    typeof user.id === 'number' &&
+    Number.isInteger(user.id) &&
+    user.id > 0 &&
+    typeof user.username === 'string' &&
+    typeof user.email === 'string' &&
+    typeof user.displayName === 'string' &&
+    (user.role === 'administrator' || user.role === 'auditor' || user.role === 'client')
+  );
 }
 
 export class AuthLocalDataSource implements AuthLocalDataSourceContract {
   constructor(private readonly storage: SecureStorage) {}
 
-  async getSession(): Promise<AuthSessionDto | null> {
-    const serialized = await this.storage.getItem(SESSION_KEY);
-    if (serialized === null) return null;
-
+  async saveSession(session: Session): Promise<void> {
     try {
-      const parsed: unknown = JSON.parse(serialized);
-      if (!isAuthSessionDto(parsed)) {
-        throw new Error('Unexpected session shape');
-      }
-      return parsed;
+      await this.storage.setItem(AUTH_STORAGE_KEYS.token, session.token);
+      await this.storage.setItem(AUTH_STORAGE_KEYS.user, JSON.stringify(session.user));
     } catch (error: unknown) {
-      throw new AppError('La sesión almacenada no es válida.', 'INVALID_RESPONSE', error);
+      await this.clearSession().catch(() => undefined);
+      throw new AppError(
+        'No fue posible guardar la sesión de forma segura.',
+        'STORAGE_ERROR',
+        error,
+      );
     }
   }
 
-  saveSession(session: AuthSessionDto): Promise<void> {
-    return this.storage.setItem(SESSION_KEY, JSON.stringify(session));
+  async getSession(): Promise<Session | null> {
+    const [token, serializedUser] = await Promise.all([
+      this.storage.getItem(AUTH_STORAGE_KEYS.token),
+      this.storage.getItem(AUTH_STORAGE_KEYS.user),
+    ]);
+    if (!token || !serializedUser) return null;
+
+    try {
+      const user: unknown = JSON.parse(serializedUser);
+      if (!isStoredUser(user)) {
+        await this.clearSession();
+        return null;
+      }
+      return { token, user };
+    } catch {
+      await this.clearSession();
+      return null;
+    }
   }
 
-  clearSession(): Promise<void> {
-    return this.storage.removeItem(SESSION_KEY);
+  async clearSession(): Promise<void> {
+    const results = await Promise.allSettled([
+      this.storage.removeItem(AUTH_STORAGE_KEYS.token),
+      this.storage.removeItem(AUTH_STORAGE_KEYS.user),
+    ]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') {
+      throw new AppError(
+        'No fue posible eliminar completamente la sesión local.',
+        'STORAGE_ERROR',
+        failure.reason,
+      );
+    }
   }
-}
-
-function isAuthSessionDto(value: unknown): value is AuthSessionDto {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'user' in value &&
-    'accessToken' in value &&
-    isUserDto(value.user) &&
-    typeof value.accessToken === 'string' &&
-    value.accessToken.length > 0
-  );
 }

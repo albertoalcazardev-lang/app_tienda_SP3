@@ -1,72 +1,67 @@
 import { AppError } from '@/shared/errors/AppError';
 
-import type { HttpClient, HttpRequestOptions } from './HttpClient';
+import type {
+  HttpClient,
+  HttpRequest,
+  HttpRequestOptions,
+  HttpResponse,
+} from './HttpClient';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 export class FetchHttpClient implements HttpClient {
-  constructor(private readonly baseUrl: string) {}
+  constructor(
+    private readonly baseUrl: string,
+    private readonly defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
+  ) {}
 
-  get<T>(path: string, options?: HttpRequestOptions): Promise<T> {
-    return this.request<T>(path, { method: 'GET' }, options);
+  async get<T>(path: string, options?: HttpRequestOptions): Promise<T> {
+    const response = await this.request({ method: 'GET', path, ...options });
+    return this.requireSuccess<T>(response);
   }
 
-  post<TResponse, TBody>(
+  async post<TResponse, TBody>(
     path: string,
     body: TBody,
     options?: HttpRequestOptions,
   ): Promise<TResponse> {
-    return this.request<TResponse>(
+    const response = await this.request({
+      method: 'POST',
       path,
-      { method: 'POST', body: JSON.stringify(body) },
-      options,
-    );
+      body,
+      ...options,
+    });
+    return this.requireSuccess<TResponse>(response);
   }
 
-  private async request<T>(
-    path: string,
-    init: RequestInit,
-    options?: HttpRequestOptions,
-  ): Promise<T> {
+  async request(request: HttpRequest): Promise<HttpResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
-      options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      request.timeoutMs ?? this.defaultTimeoutMs,
     );
 
     const abortFromCaller = () => controller.abort();
-    options?.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    request.signal?.addEventListener('abort', abortFromCaller, { once: true });
 
     try {
-      const response = await fetch(`${this.baseUrl}${normalizePath(path)}`, {
-        ...init,
+      const response = await fetch(`${this.baseUrl}${normalizePath(request.path)}`, {
+        method: request.method,
         headers: {
           Accept: 'application/json',
-          'Content-Type': 'application/json',
-          ...options?.headers,
+          ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...request.headers,
         },
+        body: request.body === undefined ? undefined : JSON.stringify(request.body),
         signal: controller.signal,
       });
 
       const payload: unknown = await readResponseBody(response);
-      if (!response.ok) {
-        throw new AppError(getHttpErrorMessage(payload, response.status), 'HTTP_ERROR', {
-          status: response.status,
-          payload,
-        });
-      }
-
-      // T is intentionally asserted only at the transport boundary. Data sources request
-      // `unknown` and perform runtime validation before values enter the domain.
-      return payload as T;
+      return { status: response.status, data: payload };
     } catch (error: unknown) {
       if (error instanceof AppError) throw error;
       if (controller.signal.aborted) {
-        throw new AppError(
-          'La solicitud excedió el tiempo permitido.',
-          'NETWORK_ERROR',
-          error,
-        );
+        throw new AppError('La solicitud excedió el tiempo permitido.', 'TIMEOUT', error);
       }
       throw new AppError(
         'No fue posible conectar con el servidor.',
@@ -75,8 +70,22 @@ export class FetchHttpClient implements HttpClient {
       );
     } finally {
       clearTimeout(timeoutId);
-      options?.signal?.removeEventListener('abort', abortFromCaller);
+      request.signal?.removeEventListener('abort', abortFromCaller);
     }
+  }
+
+  private requireSuccess<T>(response: HttpResponse): T {
+    if (response.status < 200 || response.status >= 300) {
+      throw new AppError(
+        getHttpErrorMessage(response.data, response.status),
+        'HTTP_ERROR',
+        { status: response.status, payload: response.data },
+      );
+    }
+
+    // T se afirma solo en el límite de transporte. Cada Data Source valida
+    // la forma del dato antes de permitir que entre al dominio.
+    return response.data as T;
   }
 }
 

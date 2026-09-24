@@ -1,12 +1,16 @@
 import type { AuthRepository, LoginCredentials } from '../repositories/AuthRepository';
-import type { User } from '../entities/User';
+import type { Session } from '../entities/Session';
 
-export class LoginUser {
+export interface LoginUserUseCase {
+  execute(credentials: LoginCredentials): Promise<Session>;
+}
+
+export class LoginUser implements LoginUserUseCase {
   constructor(private readonly authRepository: AuthRepository) {}
 
-  execute(credentials: LoginCredentials): Promise<User> {
+  execute(credentials: LoginCredentials): Promise<Session> {
     return this.authRepository.login({
-      email: credentials.email.trim().toLowerCase(),
+      username: credentials.username.trim(),
       password: credentials.password,
     });
   }

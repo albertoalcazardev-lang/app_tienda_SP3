@@ -1,4 +1,4 @@
-import type { User } from '../../domain/entities/User';
+import type { Session } from '../../domain/entities/Session';
 import type {
   AuthRepository,
   LoginCredentials,
@@ -9,37 +9,23 @@ import { UserMapper } from '../mappers/UserMapper';
 
 export class AuthRepositoryImpl implements AuthRepository {
   constructor(
-    private readonly remoteDataSource: AuthRemoteDataSourceContract,
-    private readonly localDataSource: AuthLocalDataSourceContract,
+    private readonly remote: AuthRemoteDataSourceContract,
+    private readonly local: AuthLocalDataSourceContract,
   ) {}
 
-  async login(credentials: LoginCredentials): Promise<User> {
-    const response = await this.remoteDataSource.login(credentials);
-    await this.localDataSource.saveSession(response);
-    return UserMapper.toDomain(response.user);
+  async login(credentials: LoginCredentials): Promise<Session> {
+    const result = await this.remote.login(credentials);
+    const session = { token: result.token, user: UserMapper.toDomain(result.user) };
+    await this.local.saveSession(session);
+    return session;
   }
 
-  async getCurrentUser(): Promise<User | null> {
-    const session = await this.localDataSource.getSession();
-    if (session === null) return null;
-
-    const userDto = await this.remoteDataSource.getCurrentUser(session.accessToken);
-    await this.localDataSource.saveSession({
-      accessToken: session.accessToken,
-      user: userDto,
-    });
-    return UserMapper.toDomain(userDto);
+  getCurrentSession(): Promise<Session | null> {
+    return this.local.getSession();
   }
 
-  async logout(): Promise<void> {
-    const session = await this.localDataSource.getSession();
-
-    try {
-      if (session !== null) {
-        await this.remoteDataSource.logout(session.accessToken);
-      }
-    } finally {
-      await this.localDataSource.clearSession();
-    }
+  logout(): Promise<void> {
+    // Fake Store API no ofrece logout: US02 elimina solamente la sesión local.
+    return this.local.clearSession();
   }
 }

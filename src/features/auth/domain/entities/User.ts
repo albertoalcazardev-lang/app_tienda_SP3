@@ -1,5 +1,9 @@
+import type { UserRole } from './UserRole';
+
 export interface User {
-  readonly id: string;
+  readonly id: number;
+  readonly username: string;
   readonly email: string;
-  readonly name: string;
+  readonly displayName: string;
+  readonly role: UserRole;
 }

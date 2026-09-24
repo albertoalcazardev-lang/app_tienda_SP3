@@ -4,7 +4,9 @@ export type AppErrorCode =
   | 'HTTP_ERROR'
   | 'INVALID_RESPONSE'
   | 'NETWORK_ERROR'
+  | 'OFFLINE'
   | 'STORAGE_ERROR'
+  | 'TIMEOUT'
   | 'UNKNOWN_ERROR';
 
 export class AppError extends Error {

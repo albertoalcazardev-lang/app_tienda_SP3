@@ -1,101 +1,38 @@
-import { AuthRemoteDataSource } from '@/features/auth/data/datasources/AuthRemoteDataSource';
-import { AuthRepositoryImpl } from '@/features/auth/data/repositories/AuthRepositoryImpl';
-import { AppError } from '@/shared/errors/AppError';
-
 import type { AuthLocalDataSourceContract } from '@/features/auth/data/datasources/AuthLocalDataSource';
 import type { AuthRemoteDataSourceContract } from '@/features/auth/data/datasources/AuthRemoteDataSource';
-import type { AuthSessionDto, UserDto } from '@/features/auth/data/dto/UserDto';
-import type { HttpClient } from '@/shared/http/HttpClient';
+import { AuthRepositoryImpl } from '@/features/auth/data/repositories/AuthRepositoryImpl';
+import { sessionFixture, userDto } from './fixtures';
 
-const userDto: UserDto = {
-  id: 'user-1',
-  email: 'demo@demo.com',
-  name: 'Usuario Demo',
-};
-
-const session: AuthSessionDto = {
-  accessToken: 'token-123',
-  user: userDto,
-};
-
-function createRemote(
-  overrides: Partial<AuthRemoteDataSourceContract> = {},
-): AuthRemoteDataSourceContract {
-  return {
-    login: async () => session,
-    getCurrentUser: async () => userDto,
-    logout: async () => undefined,
-    ...overrides,
+it('mapea el perfil, asigna rol y persiste la sesión', async () => {
+  let saved = null;
+  const remote: AuthRemoteDataSourceContract = {
+    login: jest.fn().mockResolvedValue({ token: 'jwt-demo', user: userDto }),
   };
-}
-
-function createLocal(
-  overrides: Partial<AuthLocalDataSourceContract> = {},
-): AuthLocalDataSourceContract {
-  return {
-    getSession: async () => null,
-    saveSession: async () => undefined,
-    clearSession: async () => undefined,
-    ...overrides,
+  const local: AuthLocalDataSourceContract = {
+    saveSession: jest.fn((value) => {
+      saved = value;
+      return Promise.resolve();
+    }),
+    getSession: jest.fn(),
+    clearSession: jest.fn(),
   };
-}
-
-describe('AuthRepositoryImpl', () => {
-  it('convierte UserDto a User y persiste la sesión al iniciar', async () => {
-    const saveSession = jest.fn(async () => undefined);
-    const repository = new AuthRepositoryImpl(
-      createRemote(),
-      createLocal({ saveSession }),
-    );
-
-    await expect(
-      repository.login({ email: 'demo@demo.com', password: 'Demo1234' }),
-    ).resolves.toEqual(userDto);
-    expect(saveSession).toHaveBeenCalledWith(session);
+  const result = await new AuthRepositoryImpl(remote, local).login({
+    username: 'auditor_demo',
+    password: 'never-store',
   });
-
-  it('elimina la sesión local después de cerrar la sesión remota', async () => {
-    const remoteLogout = jest.fn(async () => undefined);
-    const clearSession = jest.fn(async () => undefined);
-    const repository = new AuthRepositoryImpl(
-      createRemote({ logout: remoteLogout }),
-      createLocal({ getSession: async () => session, clearSession }),
-    );
-
-    await repository.logout();
-
-    expect(remoteLogout).toHaveBeenCalledWith('token-123');
-    expect(clearSession).toHaveBeenCalledTimes(1);
-  });
-
-  it('elimina la sesión local incluso si falla el cierre remoto', async () => {
-    const remoteError = new AppError('Servidor no disponible.', 'NETWORK_ERROR');
-    const clearSession = jest.fn(async () => undefined);
-    const repository = new AuthRepositoryImpl(
-      createRemote({ logout: jest.fn(async () => Promise.reject(remoteError)) }),
-      createLocal({ getSession: async () => session, clearSession }),
-    );
-
-    await expect(repository.logout()).rejects.toBe(remoteError);
-    expect(clearSession).toHaveBeenCalledTimes(1);
-  });
+  expect(result.user.role).toBe('auditor');
+  expect(saved).toEqual(result);
+  expect(JSON.stringify(saved)).not.toContain('never-store');
 });
 
-describe('AuthRemoteDataSource', () => {
-  it('rechaza una respuesta HTTP con forma inválida', async () => {
-    const invalidPayload: unknown = { user: { id: 'missing-fields' } };
-    const httpClient: HttpClient = {
-      async get<T>() {
-        return invalidPayload as T;
-      },
-      async post<TResponse>() {
-        return invalidPayload as TResponse;
-      },
-    };
-    const dataSource = new AuthRemoteDataSource(httpClient);
-
-    await expect(
-      dataSource.login({ email: 'demo@demo.com', password: 'Demo1234' }),
-    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
-  });
+it('logout limpia localmente sin endpoint remoto', async () => {
+  const remote: AuthRemoteDataSourceContract = { login: jest.fn() };
+  const local: AuthLocalDataSourceContract = {
+    saveSession: jest.fn(),
+    getSession: jest.fn().mockResolvedValue(sessionFixture),
+    clearSession: jest.fn().mockResolvedValue(undefined),
+  };
+  await new AuthRepositoryImpl(remote, local).logout();
+  expect(local.clearSession).toHaveBeenCalledTimes(1);
+  expect(remote.login).not.toHaveBeenCalled();
 });

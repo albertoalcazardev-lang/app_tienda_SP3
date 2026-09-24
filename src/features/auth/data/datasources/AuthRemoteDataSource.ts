@@ -1,72 +1,57 @@
 import { AppError } from '@/shared/errors/AppError';
-
+import type { Connectivity } from '@/shared/http/Connectivity';
 import type { HttpClient } from '@/shared/http/HttpClient';
-import type { LoginRequestDto, LoginResponseDto, UserDto } from '../dto/UserDto';
 
+import { isLoginResponseDto, isUserDto } from '../dto/UserDto';
+import type { LoginRequestDto, UserDto } from '../dto/UserDto';
+
+export interface RemoteLoginResult {
+  readonly token: string;
+  readonly user: UserDto;
+}
 export interface AuthRemoteDataSourceContract {
-  login(credentials: LoginRequestDto): Promise<LoginResponseDto>;
-  getCurrentUser(accessToken: string): Promise<UserDto>;
-  logout(accessToken: string): Promise<void>;
+  login(credentials: LoginRequestDto): Promise<RemoteLoginResult>;
 }
 
 export class AuthRemoteDataSource implements AuthRemoteDataSourceContract {
-  constructor(private readonly httpClient: HttpClient) {}
+  constructor(
+    private readonly httpClient: HttpClient,
+    private readonly connectivity: Connectivity,
+  ) {}
 
-  async login(credentials: LoginRequestDto): Promise<LoginResponseDto> {
-    const payload = await this.httpClient.post<unknown, LoginRequestDto>(
-      '/auth/login',
-      credentials,
-    );
-    if (!isLoginResponseDto(payload)) {
+  async login(credentials: LoginRequestDto): Promise<RemoteLoginResult> {
+    const online = await this.connectivity.isOnline().catch(() => false);
+    if (!online)
+      throw new AppError('El dispositivo no tiene acceso a internet.', 'OFFLINE');
+
+    const login = await this.httpClient.request({
+      method: 'POST',
+      path: '/auth/login',
+      body: credentials,
+    });
+    if ([400, 401, 403].includes(login.status)) {
+      throw new AppError('La API rechazó las credenciales.', 'AUTH_INVALID_CREDENTIALS');
+    }
+    if (login.status < 200 || login.status >= 300 || !isLoginResponseDto(login.data)) {
       throw new AppError(
-        'La respuesta de inicio de sesión no es válida.',
+        'La respuesta de autenticación no es válida.',
         'INVALID_RESPONSE',
       );
     }
-    return payload;
-  }
 
-  async getCurrentUser(accessToken: string): Promise<UserDto> {
-    const payload = await this.httpClient.get<unknown>('/auth/me', {
-      headers: authorizationHeader(accessToken),
-    });
-    if (!isUserDto(payload)) {
-      throw new AppError('La respuesta del perfil no es válida.', 'INVALID_RESPONSE');
+    const users = await this.httpClient.request({ method: 'GET', path: '/users' });
+    if (users.status < 200 || users.status >= 300 || !Array.isArray(users.data)) {
+      throw new AppError('La lista de usuarios no es válida.', 'INVALID_RESPONSE');
     }
-    return payload;
-  }
-
-  async logout(accessToken: string): Promise<void> {
-    await this.httpClient.post<unknown, Readonly<Record<string, never>>>(
-      '/auth/logout',
-      {},
-      { headers: authorizationHeader(accessToken) },
+    const user = users.data.find(
+      (candidate): candidate is UserDto =>
+        isUserDto(candidate) && candidate.username === credentials.username,
     );
+    if (!user)
+      throw new AppError(
+        'No fue posible identificar el perfil autenticado.',
+        'INVALID_RESPONSE',
+      );
+    return { token: login.data.token, user };
   }
-}
-
-function authorizationHeader(accessToken: string): Readonly<Record<string, string>> {
-  return { Authorization: `Bearer ${accessToken}` };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-export function isUserDto(value: unknown): value is UserDto {
-  return (
-    isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.email === 'string' &&
-    typeof value.name === 'string'
-  );
-}
-
-function isLoginResponseDto(value: unknown): value is LoginResponseDto {
-  return (
-    isRecord(value) &&
-    isUserDto(value.user) &&
-    typeof value.accessToken === 'string' &&
-    value.accessToken.length > 0
-  );
 }

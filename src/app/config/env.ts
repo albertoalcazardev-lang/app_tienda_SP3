@@ -2,11 +2,11 @@ import { AppError } from '@/shared/errors/AppError';
 
 export interface AppConfig {
   readonly apiUrl: string;
-  readonly useMocks: boolean;
+  readonly requestTimeoutMs: number;
 }
 
 function parseApiUrl(value: string | undefined): string {
-  const candidate = value?.trim() || 'https://api.example.com';
+  const candidate = value?.trim() || 'https://fakestoreapi.com';
 
   try {
     const url = new URL(candidate);
@@ -23,19 +23,20 @@ function parseApiUrl(value: string | undefined): string {
   }
 }
 
-function parseUseMocks(value: string | undefined): boolean {
-  if (value === undefined || value.trim() === '') {
-    return true;
+function parseTimeout(value: string | undefined): number {
+  const candidate = Number(value?.trim() || '10000');
+
+  if (!Number.isInteger(candidate) || candidate <= 0) {
+    throw new AppError(
+      'EXPO_PUBLIC_REQUEST_TIMEOUT_MS debe ser un entero positivo.',
+      'CONFIG_ERROR',
+    );
   }
 
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'true') return true;
-  if (normalized === 'false') return false;
-
-  throw new AppError('EXPO_PUBLIC_USE_MOCKS debe ser "true" o "false".', 'CONFIG_ERROR');
+  return candidate;
 }
 
 export const env: AppConfig = Object.freeze({
   apiUrl: parseApiUrl(process.env.EXPO_PUBLIC_API_URL),
-  useMocks: parseUseMocks(process.env.EXPO_PUBLIC_USE_MOCKS),
+  requestTimeoutMs: parseTimeout(process.env.EXPO_PUBLIC_REQUEST_TIMEOUT_MS),
 });

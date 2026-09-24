@@ -1,78 +1,80 @@
-import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useDependencies } from '@/app/di/useDependencies';
-import { toAppError } from '@/shared/errors/AppError';
-
-import type { PropsWithChildren } from 'react';
+import type { Session } from '../../domain/entities/Session';
 import type { User } from '../../domain/entities/User';
+import type { PropsWithChildren } from 'react';
+
+export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
 export interface SessionContextValue {
+  readonly status: SessionStatus;
+  readonly session: Session | null;
   readonly user: User | null;
   readonly isInitializing: boolean;
-  readonly isLoggingOut: boolean;
-  readonly error: string | null;
-  readonly completeLogin: (user: User) => void;
-  readonly logout: () => Promise<void>;
+  readonly notice: string | null;
+  completeLogin(session: Session): void;
+  clearAuthenticatedSession(notice?: string): void;
+  clearNotice(): void;
 }
 
 export const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function SessionProvider({ children }: PropsWithChildren) {
-  const { getCurrentUser, logoutUser } = useDependencies();
-  const [user, setUser] = useState<User | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { getCurrentSession } = useDependencies();
+  const [status, setStatus] = useState<SessionStatus>('loading');
+  const [session, setSession] = useState<Session | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const restorationVersion = useRef(0);
 
   useEffect(() => {
     let active = true;
-
-    async function restoreSession() {
-      try {
-        const currentUser = await getCurrentUser.execute();
-        if (active) setUser(currentUser);
-      } catch (caught: unknown) {
-        if (active)
-          setError(toAppError(caught, 'No fue posible restaurar la sesión.').message);
-      } finally {
-        if (active) setIsInitializing(false);
-      }
-    }
-
-    void restoreSession();
+    const version = restorationVersion.current;
+    void getCurrentSession
+      .execute()
+      .then((restored) => {
+        if (!active || version !== restorationVersion.current) return;
+        setSession(restored);
+        setStatus(restored ? 'authenticated' : 'unauthenticated');
+      })
+      .catch(() => {
+        if (active && version === restorationVersion.current) {
+          setSession(null);
+          setStatus('unauthenticated');
+        }
+      });
     return () => {
       active = false;
     };
-  }, [getCurrentUser]);
+  }, [getCurrentSession]);
 
-  const completeLogin = useCallback((authenticatedUser: User) => {
-    setError(null);
-    setUser(authenticatedUser);
+  const completeLogin = useCallback((value: Session) => {
+    restorationVersion.current += 1;
+    setSession(value);
+    setNotice(null);
+    setStatus('authenticated');
   }, []);
 
-  const logout = useCallback(async () => {
-    setIsLoggingOut(true);
-    setError(null);
-    try {
-      await logoutUser.execute();
-    } catch (caught: unknown) {
-      setError(toAppError(caught, 'No fue posible cerrar la sesión remota.').message);
-    } finally {
-      setUser(null);
-      setIsLoggingOut(false);
-    }
-  }, [logoutUser]);
+  const clearAuthenticatedSession = useCallback((message?: string) => {
+    restorationVersion.current += 1;
+    setSession(null);
+    setNotice(message ?? null);
+    setStatus('unauthenticated');
+  }, []);
 
-  const value = useMemo<SessionContextValue>(
+  const clearNotice = useCallback(() => setNotice(null), []);
+  const value = useMemo(
     () => ({
-      user,
-      isInitializing,
-      isLoggingOut,
-      error,
+      status,
+      session,
+      user: session?.user ?? null,
+      isInitializing: status === 'loading',
+      notice,
       completeLogin,
-      logout,
+      clearAuthenticatedSession,
+      clearNotice,
     }),
-    [completeLogin, error, isInitializing, isLoggingOut, logout, user],
+    [clearAuthenticatedSession, clearNotice, completeLogin, notice, session, status],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

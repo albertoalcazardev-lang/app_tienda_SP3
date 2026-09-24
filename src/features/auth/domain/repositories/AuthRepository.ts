@@ -1,12 +1,12 @@
-import type { User } from '../entities/User';
+import type { Session } from '../entities/Session';
 
 export interface LoginCredentials {
-  readonly email: string;
+  readonly username: string;
   readonly password: string;
 }
 
 export interface AuthRepository {
-  login(credentials: LoginCredentials): Promise<User>;
+  login(credentials: LoginCredentials): Promise<Session>;
   logout(): Promise<void>;
-  getCurrentUser(): Promise<User | null>;
+  getCurrentSession(): Promise<Session | null>;
 }

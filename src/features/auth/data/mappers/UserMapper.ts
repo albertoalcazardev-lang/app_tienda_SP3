@@ -7,6 +7,7 @@ export const UserMapper = {
       id: dto.id,
       email: dto.email,
       name: dto.name,
+      ...(dto.role ? { role: dto.role } : {}),
     };
   },
 } as const;

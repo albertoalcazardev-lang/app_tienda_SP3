@@ -24,18 +24,33 @@ export class MockAuthRepository implements AuthRepository {
 
   async login(credentials: LoginCredentials): Promise<User> {
     await delay(this.delayMs);
-    if (credentials.email !== DEMO_EMAIL || credentials.password !== DEMO_PASSWORD) {
+    const role =
+      credentials.email === 'admin@demo.com'
+        ? 'admin'
+        : credentials.email === 'auditor@demo.com'
+          ? 'auditor'
+          : 'client';
+    if (
+      ![DEMO_EMAIL, 'admin@demo.com', 'auditor@demo.com'].includes(credentials.email) ||
+      credentials.password !== DEMO_PASSWORD
+    ) {
       throw new AppError(
         'Correo o contraseña incorrectos. Usa las credenciales de demostración.',
         'AUTH_INVALID_CREDENTIALS',
       );
     }
 
+    const demoUser: User = {
+      ...MOCK_USER,
+      id: `demo-${role}`,
+      email: credentials.email,
+      role,
+    };
     await this.localDataSource.saveSession({
-      user: MOCK_USER,
+      user: demoUser,
       accessToken: 'mock-development-token',
     });
-    return UserMapper.toDomain(MOCK_USER);
+    return UserMapper.toDomain(demoUser);
   }
 
   async getCurrentUser(): Promise<User | null> {

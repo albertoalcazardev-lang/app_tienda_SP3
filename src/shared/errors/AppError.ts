@@ -1,6 +1,8 @@
 export type AppErrorCode =
   | 'AUTH_INVALID_CREDENTIALS'
   | 'CONFIG_ERROR'
+  | 'FORBIDDEN'
+  | 'VALIDATION_ERROR'
   | 'HTTP_ERROR'
   | 'INVALID_RESPONSE'
   | 'NETWORK_ERROR'

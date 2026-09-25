@@ -9,6 +9,8 @@ import { LoginScreen } from '@/features/auth/presentation/screens/LoginScreen';
 import { SessionProvider } from '@/features/auth/presentation/session/SessionProvider';
 import { AppError } from '@/shared/errors/AppError';
 
+import { createInventoryDependencies } from '@/app/di/createInventoryDependencies';
+
 import type { Dependencies } from '@/app/di/Dependencies';
 import type { User } from '@/features/auth/domain/entities/User';
 import type { AuthRepository } from '@/features/auth/domain/repositories/AuthRepository';
@@ -35,6 +37,7 @@ function createDependencies(login: AuthRepository['login']): Dependencies {
   };
 
   return {
+    inventory: createInventoryDependencies(repository),
     loginUser: new LoginUser(repository),
     logoutUser: new LogoutUser(repository),
     getCurrentUser: new GetCurrentUser(repository),

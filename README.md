@@ -1,9 +1,18 @@
-# app_tineda
+# Fake Store — Sprint 3
 
 Base multiplataforma para Android, iOS y web creada con React Native, Expo,
 TypeScript estricto y Expo Router. Incluye una implementación vertical de
 autenticación para mostrar Clean Architecture ligera, SOLID, Repository/Data Source,
 casos de uso y Dependency Injection manual.
+
+## Épica 3: inventario
+
+Alta, edición y eliminación de productos con permisos de administrador. Consulta
+[la guía de inventario](docs/INVENTARIO.md) para ejecutar, probar y explicar la
+arquitectura MVVM, los casos de uso y la simulación de Fake Store.
+
+Administrador: `admin@demo.com` / `Demo1234`. Cliente: `demo@demo.com`. Auditor:
+`auditor@demo.com`. Todos usan la misma contraseña de demostración.
 
 ## Requisitos
 
@@ -16,7 +25,7 @@ casos de uso y Dependency Injection manual.
 ## Instalación
 
 ```bash
-npm install
+npm ci
 ```
 
 Copia `.env.example` como `.env` y ajusta los valores. Si no existe `.env`, la
@@ -64,7 +73,8 @@ npx expo config --type public
 ## Seleccionar repositorio mock o remoto
 
 - `EXPO_PUBLIC_USE_MOCKS=true`: usa `MockAuthRepository`, persiste la sesión en
-  SecureStore y no necesita backend.
+  SecureStore en móvil (sessionStorage en web) y no necesita backend de autenticación.
+  El inventario sí usa la API pública de Fake Store.
 - `EXPO_PUBLIC_USE_MOCKS=false`: usa `AuthRepositoryImpl`, preparado para:
   `POST /auth/login`, `GET /auth/me` y `POST /auth/logout`.
 

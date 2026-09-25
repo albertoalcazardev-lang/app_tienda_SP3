@@ -35,9 +35,22 @@ export function HomeScreen() {
             Hola, {user?.name ?? 'usuario'}
           </Text>
           <Text style={styles.body}>
-            La autenticación se ejecutó a través de un caso de uso inyectado.
+            Consulta los productos y administra el inventario según tu rol.
           </Text>
           <Text style={styles.email}>{user?.email}</Text>
+          <Text style={styles.body}>
+            Rol:{' '}
+            {user?.role === 'admin'
+              ? 'Administrador'
+              : user?.role === 'auditor'
+                ? 'Auditor'
+                : 'Cliente'}
+          </Text>
+          <AppButton
+            title="Abrir catálogo"
+            accessibilityLabel="Abrir catálogo"
+            onPress={() => router.push('/(main)/inventory')}
+          />
           <ErrorMessage message={error ?? sessionError} />
           <AppButton
             accessibilityLabel="Cerrar sesión"

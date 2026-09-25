@@ -58,7 +58,11 @@ export function isUserDto(value: unknown): value is UserDto {
     isRecord(value) &&
     typeof value.id === 'string' &&
     typeof value.email === 'string' &&
-    typeof value.name === 'string'
+    typeof value.name === 'string' &&
+    (value.role === undefined ||
+      value.role === 'admin' ||
+      value.role === 'client' ||
+      value.role === 'auditor')
   );
 }
 

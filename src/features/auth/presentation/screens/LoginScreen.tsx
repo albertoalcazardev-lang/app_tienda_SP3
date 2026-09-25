@@ -50,7 +50,10 @@ export function LoginScreen() {
               submitError={error}
             />
 
-            <Text style={styles.demoHint}>Demo: demo@demo.com / Demo1234</Text>
+            <Text style={styles.demoHint}>
+              Demo: demo@demo.com / Demo1234. Administrador: admin@demo.com. Auditor:
+              auditor@demo.com. Misma contraseña.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

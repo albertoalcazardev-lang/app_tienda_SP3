@@ -4,7 +4,10 @@ import type { LogoutUser } from '@/features/auth/domain/use-cases/LogoutUser';
 import type { GetCarts } from '@/features/carts/domain/use-cases/GetCarts';
 import type { GetUsers } from '@/features/users/domain/use-cases/GetUsers';
 
+import type { InventoryDependencies } from './createInventoryDependencies';
+
 export interface Dependencies {
+  readonly inventory: InventoryDependencies;
   readonly loginUser: LoginUser;
   readonly logoutUser: LogoutUser;
   readonly getCurrentUser: GetCurrentUser;

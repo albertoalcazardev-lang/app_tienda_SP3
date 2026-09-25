@@ -2,6 +2,7 @@ import { AppError } from '@/shared/errors/AppError';
 
 export interface AppConfig {
   readonly apiUrl: string;
+  readonly fakeStoreApiUrl: string;
   readonly useMocks: boolean;
 }
 
@@ -37,5 +38,8 @@ function parseUseMocks(value: string | undefined): boolean {
 
 export const env: AppConfig = Object.freeze({
   apiUrl: parseApiUrl(process.env.EXPO_PUBLIC_API_URL),
+  fakeStoreApiUrl: parseApiUrl(
+    process.env.EXPO_PUBLIC_FAKESTORE_API_URL ?? 'https://fakestoreapi.com',
+  ),
   useMocks: parseUseMocks(process.env.EXPO_PUBLIC_USE_MOCKS),
 });
